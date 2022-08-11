@@ -10,7 +10,6 @@ bot = telebot.TeleBot(TOKEN)
 
 wikipedia.set_lang("ru")
 
-
 markup = types.ReplyKeyboardMarkup(row_width=3)
 button1 = types.KeyboardButton("Посмотреть список дел")
 button2 = types.KeyboardButton("Создать задачу")
@@ -20,10 +19,8 @@ button5 = types.KeyboardButton("О программе")
 button6 = types.KeyboardButton("Выйти")
 markup.add(button1, button2, button3, button4, button5, button6)
 
-
 if not os.path.exists('data.json'):
     f.write_to_file({})
-
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -45,7 +42,6 @@ def start(message):
                               'и ты окажешься в главном меню!\n'
                               'а пока потыкай кнопки :)\n', reply_markup=markup)
 
-
 @bot.message_handler()
 def handle_message(msg):
     chat_id = str(msg.chat.id)
@@ -55,8 +51,7 @@ def handle_message(msg):
         json_data = f.read_from_file()
         todo_list = json_data.get(str(chat_id), [])
         if len(todo_list) == 0:
-            bot.send_message(chat_id, 'Записная книжка пустая',
-                             reply_markup=markup)
+            bot.send_message(chat_id, 'Записная книжка пустая', reply_markup=markup)
             return
 
         todo_body = 'Список задач:\n'
@@ -66,16 +61,21 @@ def handle_message(msg):
 
         list_markup = types.ReplyKeyboardMarkup(row_width=3)
         edit_button = types.KeyboardButton("Редактировать")
+        completed_button = types.KeyboardButton("Выполнено")
         delete_button = types.KeyboardButton("Удалить")
         cancel_button = types.KeyboardButton("Назад")
-        list_markup.add(edit_button, delete_button, cancel_button)
+        list_markup.add(edit_button, completed_button, delete_button, cancel_button)
         bot.send_message(chat_id, "Выберите действие",
                          reply_markup=list_markup)
-
     if msg.text == "Редактировать":
         bot.send_message(
             chat_id, 'Введите номер задачи которую необходимо отредактивароть')
         bot.register_next_step_handler(msg, edit_todo_from_list)
+    ###
+    if msg.text == "Выполнено":
+        bot.send_message(chat_id, 'Введите номер задачи которая выполнена')
+        bot.register_next_step_handler(msg, completed_todo_from_list)
+    ###
 
     if msg.text == "Удалить":
         bot.send_message(
@@ -112,30 +112,49 @@ def handle_message(msg):
 
     # Выход
     if msg.text == button6.text:
-        bot.send_message(chat_id, 'До новых встреч!')
-
+        bot.send_message(chat_id, 'До новых встреч!\n'
+                                  'Соскучишься - жми')
+        bot.send_message(msg.chat.id, '/start', reply_markup=types.ReplyKeyboardRemove())
 
 def add_todo_into_list(message):
     chat_id = str(message.chat.id)
-
     json_data = f.read_from_file()
-
     user_todo = json_data.get(chat_id, [])
-
     user_todo.append(message.text)
     json_data[chat_id] = user_todo
-
     f.write_to_file(json_data)
-
     bot.send_message(chat_id, 'Задача добавлена', reply_markup=markup)
 
+###
+def completed_todo_from_list(message):
+    chat_id = str(message.chat.id)
+    json_data = f.read_from_file()
+    user_todo = json_data.get(chat_id, [])
+    try:
+        todo_index = int(message.text)
+    except ValueError:
+        bot.send_message(chat_id, "Введи нормальное число!")
+        return
+
+    if todo_index < 0 or todo_index > len(user_todo):
+        bot.send_message(chat_id, "Введи нормальное число! ")
+        return
+
+    def completed_todo(msg):
+        # user_todo[todo_index] = msg.text
+        user_todo[todo_index] = ('~'+user_todo[todo_index]+'~')
+        json_data[chat_id] = user_todo
+        f.write_to_file(json_data)
+        bot.send_message(chat_id, "Я отметил задачу как выполненой", reply_markup=markup)
+
+    bot.send_message(chat_id, '~'+str(user_todo)+'~', parse_mode='MarkdownV2')
+    bot.register_next_step_handler(message, completed_todo)
+###
 
 def delete_todo_from_list(message):
     chat_id = str(message.chat.id)
     json_data = f.read_from_file()
-
     user_todo = json_data.get(chat_id, [])
-
     try:
         todo_index = int(message.text)
     except ValueError:
@@ -149,7 +168,6 @@ def delete_todo_from_list(message):
     del user_todo[todo_index]
     json_data[chat_id] = user_todo
     f.write_to_file(json_data)
-
     bot.send_message(chat_id, 'Задача удалена')
 
 
@@ -176,7 +194,6 @@ def edit_todo_from_list(message):
 
     bot.send_message(chat_id, 'Что будет в этой задаче?')
     bot.register_next_step_handler(message, edit_todo)
-
 
 def getwiki(message):
     chat_id = str(message.chat.id)
@@ -206,8 +223,7 @@ def getwiki(message):
         bot.send_message(chat_id, wikitext2, reply_markup=markup)
     # Обрабатываем исключение, которое мог вернуть модуль wikipedia при запросе
     except Exception as e:
-        bot.send_message(chat_id, 'В энциклопедии нет информации об этом', reply_markup=markup) 
-
+        bot.send_message(chat_id, 'В энциклопедии нет информации об этом', reply_markup=markup)
 
 print('server started')
 bot.polling()
